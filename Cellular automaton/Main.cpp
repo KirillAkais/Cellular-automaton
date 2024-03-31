@@ -6,11 +6,18 @@
 #include <tchar.h>
 #include "Automaton.h"
 
+#include <iostream>
+
+using namespace std;
+
 //Automata window size
 #define WINDOW_W 800
 #define WINDOW_H 800
+
+#define AMOUNT_PER_SIDE 4
+#define AMOUNT AMOUNT_PER_SIDE*AMOUNT_PER_SIDE
 //Control panel size
-#define CONTROL_W 600
+#define CONTROL_W 800
 #define CONTROL_H 800
 
 // Data
@@ -31,18 +38,29 @@ int main()
 {
 	srand(time(0));
 
+    static int f = 30;
+    static bool paused = false;
+    vector<int> patterns;
+
 	RenderWindow window(VideoMode(WINDOW_W, WINDOW_H), "Cellular automata"); //Automata window
 
 	//Automaton declaration and creation of sprite for drawing it
-	Automaton a;
-	Image *image = new Image;
-	image->create(FIELD_W, FIELD_H);
-	a.set_conway();
-	Texture *texture = new Texture;
-	texture->loadFromImage(*image);
-	Sprite sprite;
-	sprite.setTexture(*texture);
-	sprite.setScale(WINDOW_W / FIELD_W, WINDOW_H / FIELD_H);
+    Population p;
+
+	Image **image = new Image*[AMOUNT];
+	Texture **texture = new Texture*[AMOUNT];
+	
+	Sprite* sprite = new Sprite[AMOUNT];
+    for (int i = 0; i < AMOUNT; i++)
+    {
+        image[i] = new Image;
+        image[i]->create(FIELD_W, FIELD_H);
+        texture[i] = new Texture;
+        texture[i]->loadFromImage(*image[i]);
+        sprite[i].setTexture(*texture[i]);
+        sprite[i].setScale(WINDOW_W / FIELD_W / AMOUNT_PER_SIDE, WINDOW_H / FIELD_H / AMOUNT_PER_SIDE);
+    }
+	
 
     // Create control panel window
     ImGui_ImplWin32_EnableDpiAwareness();
@@ -107,10 +125,20 @@ int main()
         ImGui_ImplDX9_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
-        static int f = 30;
+        
         
         // Create control menu
         {
+            static int mutation_chance = 10;
+            static int mutation_amount = 2;
+            static int gene_ratio = 50;
+            static int field_ratio = 50;
+            static int steps = 500;
+            static int evo_steps = 500;
+            static int pattern = 33080895;
+            static int mistakes = 2;
+
+
             const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
             ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y), ImGuiCond_FirstUseEver);
             ImGui::SetNextWindowSize(ImVec2(CONTROL_W, CONTROL_H), ImGuiCond_Always);
@@ -120,11 +148,71 @@ int main()
             ImGui::SeparatorText("Render settings");
 
             ImGui::SliderInt("FPS", &f, 1, 60);
+
+
+            ImGui::Checkbox("Paused", &paused);
+
+            if (ImGui::Button("Single step"))
+                p.step();
+
+            ImGui::InputInt("steps at once", &steps, 1, 100);
+            ImGui::SameLine();
+            if (ImGui::Button("Go"))
+                p.step(steps);
+
+
             ImGui::SeparatorText("Rule settings");
+            if (ImGui::Button("Set to Game of life"))
+                p.set_conway();
 
+            ImGui::SliderInt("% of 1 in rule", &gene_ratio, 0, 100);
+            ImGui::SameLine();
+            if (ImGui::Button("Set"))
+                p.set_gene_ratio(gene_ratio);
 
-            if (ImGui::Button("Set to Game of life"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                a.set_conway();
+            ImGui::SeparatorText("Reset field");
+
+            if (ImGui::Button("Fill random"))
+                p.fill_random();
+
+            ImGui::SliderInt("% of 1 on field", &field_ratio, 0, 100);
+            ImGui::SameLine();
+            if (ImGui::Button("Fill"))
+                p.fill_ratio(field_ratio);
+
+            if (ImGui::Button("Set 0ne"))
+                p.fill_one();
+
+            ImGui::SeparatorText("Evolution settings");
+
+            const char* items[] = { "Least change", "Pattern", "By hand" };
+            static int type = 0;
+            ImGui::Combo("Selection type", &type, items, IM_ARRAYSIZE(items));
+
+            ImGui::InputInt("Pattern", &pattern);
+            ImGui::SameLine();
+            if (ImGui::Button("Add"))
+                patterns.push_back(pattern);
+            ImGui::Text("Patterns: ");
+            for (int i = 0; i < patterns.size(); i++)
+            {
+                ImGui::SameLine();
+                ImGui::Text("%d ", patterns[i]);
+            }
+            if (ImGui::Button("Remove") && patterns.size())
+                patterns.pop_back();
+
+            ImGui::InputInt("Allowed mistakes", &mistakes);
+
+            ImGui::SliderInt("% of mutations", &mutation_chance, 0, 100);
+            ImGui::SliderInt("amount of mutations", &mutation_amount, 0, 32);
+
+            ImGui::InputInt("Evolution steps", &evo_steps, 1, 1000);
+            ImGui::SameLine();
+            if (ImGui::Button("Evolve"))
+                p.evolute(evo_steps, type, mutation_chance, mutation_amount, &patterns, &mistakes);
+
+            ImGui::Text("Evolution process normally takes several minutes");
 
             ImGui::Separator();
 
@@ -167,16 +255,28 @@ int main()
         // Handle keyboard commands
 		if (Keyboard::isKeyPressed(Keyboard::Enter))
 		{
-			a.step();
+			p.step();
 			sleep(milliseconds(300));
 		}
 
         // Iterate and draw automaton
-		a.draw(image, f);
-		texture->loadFromImage(*image);
-		sprite.setTexture(*texture);
+        if(!paused)
+		    p.draw(0, AMOUNT, image, f);
+        else
+            p.draw(0, AMOUNT, image);
+        for (int i = 0; i < AMOUNT; i++)
+        {
+            texture[i]->loadFromImage(*image[i]);
+            sprite[i].setTexture(*texture[i]);
+            sprite[i].setScale(WINDOW_W / FIELD_W / AMOUNT_PER_SIDE, WINDOW_H / FIELD_H / AMOUNT_PER_SIDE);
+        }
 		window.clear();
-		window.draw(sprite);
+        for (int i = 0; i < AMOUNT; i++)
+        {
+            sprite[i].setPosition(5 + (sprite[i].getScale().x * FIELD_W + 5) * (i % AMOUNT_PER_SIDE),
+                5 + (sprite[i].getScale().x * FIELD_H + 5) * (i / AMOUNT_PER_SIDE));
+            window.draw(sprite[i]);
+        }
 		window.display();
 	}
 
