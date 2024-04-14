@@ -51,6 +51,9 @@
     <ClCompile Include="..\imgui\backends\imgui_impl_win32.cpp">
       <Filter>Исходные файлы\ImGui</Filter>
     </ClCompile>
+    <ClCompile Include="..\imgui\misc\cpp\imgui_stdlib.cpp">
+      <Filter>Исходные файлы\ImGui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Automaton.h">

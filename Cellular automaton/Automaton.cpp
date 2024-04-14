@@ -6,6 +6,8 @@
 
 Automaton::Automaton()
 {
+	this->FIELD_H = DEFAULT_FIELD_H;
+	this->FIELD_W =DEFAULT_FIELD_W;
 	this->rule = new bool[RULE_SIZE];
 	for (int i = 0; i < RULE_SIZE; i++)
 		rule[i] = rand() % 2;
@@ -13,6 +15,28 @@ Automaton::Automaton()
 	this->state = new bool*[FIELD_W];
 	this->prev_state = new bool*[FIELD_W];
 	this->next_state = new bool*[FIELD_W];
+	for (int i = 0; i < FIELD_W; i++)
+	{
+		this->state[i] = new bool[FIELD_H];
+		this->prev_state[i] = new bool[FIELD_H];
+		this->next_state[i] = new bool[FIELD_H];
+
+		for (int j = 0; j < FIELD_H; j++)
+			this->state[i][j] = rand() % 2;
+	}
+}
+
+Automaton::Automaton(int field_w, int field_h)
+{
+	this->FIELD_H = field_h;
+	this->FIELD_W = field_w;
+	this->rule = new bool[RULE_SIZE];
+	for (int i = 0; i < RULE_SIZE; i++)
+		rule[i] = rand() % 2;
+
+	this->state = new bool* [FIELD_W];
+	this->prev_state = new bool* [FIELD_W];
+	this->next_state = new bool* [FIELD_W];
 	for (int i = 0; i < FIELD_W; i++)
 	{
 		this->state[i] = new bool[FIELD_H];
@@ -108,6 +132,38 @@ void Automaton::step()
 	swap(next_state, state);
 }
 
+void Automaton::write(string name, bool overwrite)
+{
+	ofstream file;
+	ifstream test(name + ".txt");
+	if (test.good() && !overwrite)
+	{
+		cout << "File already exists. Check \"Overwrite\" to save anyways" << endl;
+		test.close();
+		return;
+	}
+	test.close();
+	file.open(name + ".txt");
+	for (int i = 0; i < RULE_SIZE; i++)
+		file << rule[i] << " ";
+	file.close();
+}
+
+void Automaton::read(string name)
+{
+	ifstream file;
+	file.open(name + ".txt");
+	for (int i = 0; i < RULE_SIZE && !file.eof(); i++)
+		file >> rule[i];
+	file.close();
+}
+
+void Automaton::clone(Automaton* a)
+{
+	for (int i = 0; i < RULE_SIZE; i++)
+		rule[i] = a->rule[i];
+}
+
 // Continuously iterates and draws the automaton
 void Automaton::draw(Image* out, int fps)
 {
@@ -197,15 +253,15 @@ void Population::select_dynamic()
 		count1 = 0;
 		count2 = 0;
 		fit = 0;
-		for (int x = 0; x < FIELD_W; x++)
+		for (int x = 0; x < DEFAULT_FIELD_W; x++)
 		{
-			for (int y = 0; y < FIELD_H; y++)
+			for (int y = 0; y < DEFAULT_FIELD_H; y++)
 			{
 				fit += automata[i]->state[x][y] == automata[i]->prev_state[x][y];
 				count1 += automata[i]->state[x][y];
 			}
 		}
-		count2 = FIELD_SIZE - count1;
+		count2 = DEFAULT_FIELD_SIZE - count1;
 		count1 = abs(count1 - count2);
 		if (count1 > 100)
 			fit = 0;
@@ -217,24 +273,23 @@ void Population::select_pattern(vector<int> pattern, int mistakes)
 {
 	int n, fit, xm, xmm, xp, xpp, ym, ymm, yp, ypp;
 	fill_random();
-	//step(20);
 	for (int i = 0; i < 30; i++)
 	{
 		for (int j = 0; j < POPULATION_SIZE; j++)
 		{
 			fit = 0;
-			for (int x = 0; x < FIELD_W; x++)
+			for (int x = 0; x < DEFAULT_FIELD_W; x++)
 			{
-				xm = !x ? FIELD_W - 1 : x - 1;
-				xp = x == FIELD_W - 1 ? 0 : x + 1;
-				xmm = x < 2 ? FIELD_W - 2 + x : x - 2;
-				xpp = x > FIELD_W - 3 ? x - FIELD_W + 2 : x + 2;
-				for (int y = 0; y < FIELD_H; y++)
+				xm = !x ? DEFAULT_FIELD_W - 1 : x - 1;
+				xp = x == DEFAULT_FIELD_W - 1 ? 0 : x + 1;
+				xmm = x < 2 ? DEFAULT_FIELD_W - 2 + x : x - 2;
+				xpp = x > DEFAULT_FIELD_W - 3 ? x - DEFAULT_FIELD_W + 2 : x + 2;
+				for (int y = 0; y < DEFAULT_FIELD_H; y++)
 				{
-					ym = !y ? FIELD_H - 1 : y - 1;
-					yp = y == FIELD_H - 1 ? 0 : y + 1;
-					ymm = y < 2 ? FIELD_H - 2 + y : y - 2;
-					ypp = y > FIELD_H - 3 ? y - FIELD_H + 2 : y + 2;
+					ym = !y ? DEFAULT_FIELD_H - 1 : y - 1;
+					yp = y == DEFAULT_FIELD_H - 1 ? 0 : y + 1;
+					ymm = y < 2 ? DEFAULT_FIELD_H - 2 + y : y - 2;
+					ypp = y > DEFAULT_FIELD_H - 3 ? y - DEFAULT_FIELD_H + 2 : y + 2;
 
 					n = automata[j]->state[xmm][ymm]
 						| (automata[j]->state[xm][ymm] << 1)
@@ -273,6 +328,137 @@ void Population::select_pattern(vector<int> pattern, int mistakes)
 			fitness[j] = fit;
 		}
 		step();
+	}
+}
+
+void Population::select_pattern_fast(vector<int> pattern)
+{
+	int n, xm, xmm, xp, xpp, ym, ymm, yp, ypp;
+	int* pattern_found = new int[pattern.size()];
+	fill_random();
+	step(50);
+	for (int j = 0; j < POPULATION_SIZE; j++)
+	{
+		fitness[j] = 0;
+		for (int i = 0; i < pattern.size(); i++)
+			pattern_found[i] = 0;
+		for (int x = 0; x < DEFAULT_FIELD_W; x++)
+		{
+			xm = !x ? DEFAULT_FIELD_W - 1 : x - 1;
+			xp = x == DEFAULT_FIELD_W - 1 ? 0 : x + 1;
+			xmm = x < 2 ? DEFAULT_FIELD_W - 2 + x : x - 2;
+			xpp = x > DEFAULT_FIELD_W - 3 ? x - DEFAULT_FIELD_W + 2 : x + 2;
+			for (int y = 0; y < DEFAULT_FIELD_H; y++)
+			{
+				ym = !y ? DEFAULT_FIELD_H - 1 : y - 1;
+				yp = y == DEFAULT_FIELD_H - 1 ? 0 : y + 1;
+				ymm = y < 2 ? DEFAULT_FIELD_H - 2 + y : y - 2;
+				ypp = y > DEFAULT_FIELD_H - 3 ? y - DEFAULT_FIELD_H + 2 : y + 2;
+
+				n = automata[j]->state[xmm][ymm]
+					| (automata[j]->state[xm][ymm] << 1)
+					| (automata[j]->state[x][ymm] << 2)
+					| (automata[j]->state[xp][ymm] << 3)
+					| (automata[j]->state[xpp][ymm] << 4)
+					| (automata[j]->state[xmm][ym] << 5)
+					| (automata[j]->state[xm][ym] << 6)
+					| (automata[j]->state[x][ym] << 7)
+					| (automata[j]->state[xp][ym] << 8)
+					| (automata[j]->state[xpp][ym] << 9)
+					| (automata[j]->state[xmm][y] << 10)
+					| (automata[j]->state[xm][y] << 11)
+					| (automata[j]->state[x][y] << 12)
+					| (automata[j]->state[xp][y] << 13)
+					| (automata[j]->state[xpp][y] << 14)
+					| (automata[j]->state[xmm][yp] << 15)
+					| (automata[j]->state[xm][yp] << 16)
+					| (automata[j]->state[x][yp] << 17)
+					| (automata[j]->state[xp][yp] << 18)
+					| (automata[j]->state[xpp][yp] << 19)
+					| (automata[j]->state[xmm][ypp] << 20)
+					| (automata[j]->state[xm][ypp] << 21)
+					| (automata[j]->state[x][ypp] << 22)
+					| (automata[j]->state[xp][ypp] << 23)
+					| (automata[j]->state[xpp][ypp] << 24);
+				for (int i = 0; i < pattern.size(); i++)
+				{
+					Uint32 res = n ^ pattern[i];
+					res = _Popcount(res);
+					if (res > pattern_found[i])
+						pattern_found[i] = res;
+					if (res == 25)
+						pattern_found[i]++;
+				}
+			}
+		}
+		for (int i = 0; i < pattern.size(); i++)
+			fitness[j] += pattern_found[i];
+	}
+}
+
+void Population::select_pattern_static(vector<int> pattern)
+{
+	int n, xm, xmm, xp, xpp, ym, ymm, yp, ypp;
+	int* pattern_found = new int[pattern.size()];
+	fill_random();
+	step(50);
+	for (int j = 0; j < POPULATION_SIZE; j++)
+	{
+		fitness[j] = 0;
+		for (int i = 0; i < pattern.size(); i++)
+			pattern_found[i] = 0;
+		for (int x = 0; x < DEFAULT_FIELD_W; x++)
+		{
+			xm = !x ? DEFAULT_FIELD_W - 1 : x - 1;
+			xp = x == DEFAULT_FIELD_W - 1 ? 0 : x + 1;
+			xmm = x < 2 ? DEFAULT_FIELD_W - 2 + x : x - 2;
+			xpp = x > DEFAULT_FIELD_W - 3 ? x - DEFAULT_FIELD_W + 2 : x + 2;
+			for (int y = 0; y < DEFAULT_FIELD_H; y++)
+			{
+				ym = !y ? DEFAULT_FIELD_H - 1 : y - 1;
+				yp = y == DEFAULT_FIELD_H - 1 ? 0 : y + 1;
+				ymm = y < 2 ? DEFAULT_FIELD_H - 2 + y : y - 2;
+				ypp = y > DEFAULT_FIELD_H - 3 ? y - DEFAULT_FIELD_H + 2 : y + 2;
+
+				n = automata[j]->state[xmm][ymm]
+					| (automata[j]->state[xm][ymm] << 1)
+					| (automata[j]->state[x][ymm] << 2)
+					| (automata[j]->state[xp][ymm] << 3)
+					| (automata[j]->state[xpp][ymm] << 4)
+					| (automata[j]->state[xmm][ym] << 5)
+					| (automata[j]->state[xm][ym] << 6)
+					| (automata[j]->state[x][ym] << 7)
+					| (automata[j]->state[xp][ym] << 8)
+					| (automata[j]->state[xpp][ym] << 9)
+					| (automata[j]->state[xmm][y] << 10)
+					| (automata[j]->state[xm][y] << 11)
+					| (automata[j]->state[x][y] << 12)
+					| (automata[j]->state[xp][y] << 13)
+					| (automata[j]->state[xpp][y] << 14)
+					| (automata[j]->state[xmm][yp] << 15)
+					| (automata[j]->state[xm][yp] << 16)
+					| (automata[j]->state[x][yp] << 17)
+					| (automata[j]->state[xp][yp] << 18)
+					| (automata[j]->state[xpp][yp] << 19)
+					| (automata[j]->state[xmm][ypp] << 20)
+					| (automata[j]->state[xm][ypp] << 21)
+					| (automata[j]->state[x][ypp] << 22)
+					| (automata[j]->state[xp][ypp] << 23)
+					| (automata[j]->state[xpp][ypp] << 24);
+				for (int i = 0; i < pattern.size(); i++)
+				{
+					Uint32 res = n ^ pattern[i];
+					res = _Popcount(res);
+					if (res > pattern_found[i])
+						pattern_found[i] = res;
+					if (res == 25)
+						pattern_found[i]++;
+				}
+				fitness[j] += automata[j]->state[x][y] == automata[j]->prev_state[x][y];
+			}
+		}
+		for (int i = 0; i < pattern.size(); i++)
+			fitness[j] += pattern_found[i] * 200;
 	}
 }
 
@@ -347,6 +533,12 @@ void Population::evolute(int type, int mutation_chance, int mutation_amount, vec
 	case EVOLUTE_PATTERN:
 		select_pattern(*param1, *param2);
 		break;
+	case EVOLUTE_PATTERN_FAST:
+		select_pattern_fast(*param1);
+		break;
+	case EVOLUTE_PATTERN_STATIC:
+		select_pattern_static(*param1);
+		break;
 	default:
 		break;
 	}
@@ -399,7 +591,7 @@ void Population::evolute(int times, int type, int mutation_chance, int mutation_
 	{
 		evolute(type, mutation_chance, mutation_amount, param1, param2);
 		if (!(i % 100))
-			cout << i << "/" << times << "Best fitness: " << fitness[0] << endl;
+			cout << i << "/" << times << " Best fitness: " << fitness[0] << endl;
 	}
 	sort_fitness();
 }
@@ -433,5 +625,5 @@ void Population::draw(int id_begin, int id_end, Image** out, int fps)
 void Population::draw(int id_begin, int id_end, Image** out)
 {
 	for (int i = id_begin; i < id_end; i++)
-		automata[i]->draw(out[i]);
+		automata[i]->draw(out[i - id_begin]);
 }

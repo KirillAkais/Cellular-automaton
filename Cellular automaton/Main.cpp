@@ -5,6 +5,7 @@
 #include <d3d9.h>
 #include <tchar.h>
 #include "Automaton.h"
+#include "misc/cpp/imgui_stdlib.h"
 
 #include <iostream>
 
@@ -13,6 +14,9 @@ using namespace std;
 //Automata window size
 #define WINDOW_W 800
 #define WINDOW_H 800
+
+#define BIG_AUTOMATON_W 256.
+#define BIG_AUTOMATON_H 256.
 
 #define AMOUNT_PER_SIDE 4
 #define AMOUNT AMOUNT_PER_SIDE*AMOUNT_PER_SIDE
@@ -38,29 +42,49 @@ int main()
 {
 	srand(time(0));
 
+    string name = "unnamed";
+    bool overwrite = false;
+    int view_id = 0;
+    int current_id = 0;
+    int big_id = 0;
     static int f = 30;
     static bool paused = false;
+    static bool show_id = true;
+    static bool draw_big = false;
     vector<int> patterns;
 
 	RenderWindow window(VideoMode(WINDOW_W, WINDOW_H), "Cellular automata"); //Automata window
 
 	//Automaton declaration and creation of sprite for drawing it
     Population p;
+    Automaton big(BIG_AUTOMATON_W, BIG_AUTOMATON_H);
 
-	Image **image = new Image*[AMOUNT];
-	Texture **texture = new Texture*[AMOUNT];
+	Image **image = new Image*[AMOUNT + 1];
+	Texture **texture = new Texture*[AMOUNT + 1];
 	
-	Sprite* sprite = new Sprite[AMOUNT];
-    for (int i = 0; i < AMOUNT; i++)
+	Sprite* sprite = new Sprite[AMOUNT + 1];
+    for (int i = 0; i <= AMOUNT; i++)
     {
         image[i] = new Image;
-        image[i]->create(FIELD_W, FIELD_H);
+        if (i != AMOUNT)
+            image[i]->create(DEFAULT_FIELD_W, DEFAULT_FIELD_H);
+        else
+            image[i]->create(BIG_AUTOMATON_W, BIG_AUTOMATON_H);
         texture[i] = new Texture;
         texture[i]->loadFromImage(*image[i]);
         sprite[i].setTexture(*texture[i]);
-        sprite[i].setScale(WINDOW_W / FIELD_W / AMOUNT_PER_SIDE, WINDOW_H / FIELD_H / AMOUNT_PER_SIDE);
+        if (i != AMOUNT)
+            sprite[i].setScale(WINDOW_W / DEFAULT_FIELD_W / AMOUNT_PER_SIDE, WINDOW_H / DEFAULT_FIELD_H / AMOUNT_PER_SIDE);
+        else
+            sprite[i].setScale(WINDOW_W / BIG_AUTOMATON_W, WINDOW_H / BIG_AUTOMATON_H);
     }
-	
+    Font font;
+    font.loadFromFile("c:\\Windows\\Fonts\\verdana.ttf");
+    Text id_display;
+    id_display.setFont(font);
+    id_display.setFillColor(Color::White);
+    id_display.setOutlineColor(Color::Black);
+    id_display.setOutlineThickness(3);
 
     // Create control panel window
     ImGui_ImplWin32_EnableDpiAwareness();
@@ -149,7 +173,21 @@ int main()
 
             ImGui::SliderInt("FPS", &f, 1, 60);
 
+            ImGui::Text("Showing automata %d-%d/%d", view_id, view_id + AMOUNT - 1, POPULATION_SIZE - 1);
+            ImGui::SameLine();
+            if (ImGui::Button("< Prev"))
+                view_id -= view_id < AMOUNT ? view_id : AMOUNT;
+            ImGui::SameLine();
+            if (ImGui::Button("Next >"))
+                view_id += view_id < POPULATION_SIZE - AMOUNT ? AMOUNT : 0;
 
+            ImGui::Checkbox("Show IDs", &show_id);
+            ImGui::Checkbox("Show big automaton", &draw_big);
+            ImGui::InputInt("Copy from", &big_id);
+            big_id = big_id < 0 ? 0 : big_id < POPULATION_SIZE ? big_id : POPULATION_SIZE - 1;
+            ImGui::SameLine();
+            if (ImGui::Button("Copy"))
+                big.clone(p.automata[big_id]);
             ImGui::Checkbox("Paused", &paused);
 
             if (ImGui::Button("Single step"))
@@ -173,19 +211,28 @@ int main()
             ImGui::SeparatorText("Reset field");
 
             if (ImGui::Button("Fill random"))
-                p.fill_random();
+            {
+                p.fill_ratio(50);
+                big.fill_ratio(50);
+            }
 
             ImGui::SliderInt("% of 1 on field", &field_ratio, 0, 100);
             ImGui::SameLine();
             if (ImGui::Button("Fill"))
+            {
                 p.fill_ratio(field_ratio);
+                big.fill_ratio(field_ratio);
+            }
 
             if (ImGui::Button("Set 0ne"))
+            {
                 p.fill_one();
+                big.fill_one();
+            }
 
             ImGui::SeparatorText("Evolution settings");
 
-            const char* items[] = { "Least change", "Pattern", "By hand" };
+            const char* items[] = { "Least change", "Pattern", "Pattern fast", "Pattern static", "By hand" };
             static int type = 0;
             ImGui::Combo("Selection type", &type, items, IM_ARRAYSIZE(items));
 
@@ -196,8 +243,8 @@ int main()
             ImGui::Text("Patterns: ");
             for (int i = 0; i < patterns.size(); i++)
             {
-                ImGui::SameLine();
-                ImGui::Text("%d ", patterns[i]);
+                //ImGui::SameLine();
+                ImGui::Text("%d", patterns[i]);
             }
             if (ImGui::Button("Remove") && patterns.size())
                 patterns.pop_back();
@@ -213,6 +260,19 @@ int main()
                 p.evolute(evo_steps, type, mutation_chance, mutation_amount, &patterns, &mistakes);
 
             ImGui::Text("Evolution process normally takes several minutes");
+
+            ImGui::SeparatorText("Save/load automaton");
+            ImGui::InputInt("Automaton ID", &current_id);
+            current_id = current_id < 0 ? 0 : current_id < POPULATION_SIZE ? current_id : POPULATION_SIZE - 1;
+            ImGui::InputText("Enter name", &name);
+
+            if (ImGui::Button("Save"))
+                p.automata[current_id]->write(name, overwrite);
+            ImGui::SameLine();
+            if (ImGui::Button("Load"))
+                p.automata[current_id]->read(name);
+            ImGui::SameLine();
+            ImGui::Checkbox("Overwrite", &overwrite);
 
             ImGui::Separator();
 
@@ -252,30 +312,45 @@ int main()
 				break;
 			}
 		}
-        // Handle keyboard commands
-		if (Keyboard::isKeyPressed(Keyboard::Enter))
-		{
-			p.step();
-			sleep(milliseconds(300));
-		}
-
         // Iterate and draw automaton
-        if(!paused)
-		    p.draw(0, AMOUNT, image, f);
-        else
-            p.draw(0, AMOUNT, image);
-        for (int i = 0; i < AMOUNT; i++)
+        if (draw_big)
         {
-            texture[i]->loadFromImage(*image[i]);
-            sprite[i].setTexture(*texture[i]);
-            sprite[i].setScale(WINDOW_W / FIELD_W / AMOUNT_PER_SIDE, WINDOW_H / FIELD_H / AMOUNT_PER_SIDE);
+            if (!paused)
+                big.draw(image[AMOUNT], f);
+            else
+                big.draw(image[AMOUNT]);
+            texture[AMOUNT]->loadFromImage(*image[AMOUNT]);
+            sprite[AMOUNT].setTexture(*texture[AMOUNT]);
+            sprite[AMOUNT].setScale(WINDOW_W / BIG_AUTOMATON_W, WINDOW_H / BIG_AUTOMATON_H);
+        }
+        else
+        {
+            if (!paused)
+                p.draw(view_id, view_id + AMOUNT, image, f);
+            else
+                p.draw(view_id, view_id + AMOUNT, image);
+            for (int i = 0; i < AMOUNT; i++)
+            {
+                texture[i]->loadFromImage(*image[i]);
+                sprite[i].setTexture(*texture[i]);
+                sprite[i].setScale(WINDOW_W / DEFAULT_FIELD_W / AMOUNT_PER_SIDE, WINDOW_H / DEFAULT_FIELD_H / AMOUNT_PER_SIDE);
+            }
         }
 		window.clear();
-        for (int i = 0; i < AMOUNT; i++)
+        if (draw_big)
+            window.draw(sprite[AMOUNT]);
+        else
         {
-            sprite[i].setPosition(5 + (sprite[i].getScale().x * FIELD_W + 5) * (i % AMOUNT_PER_SIDE),
-                5 + (sprite[i].getScale().x * FIELD_H + 5) * (i / AMOUNT_PER_SIDE));
-            window.draw(sprite[i]);
+            for (int i = 0; i < AMOUNT; i++)
+            {
+                sprite[i].setPosition(5 + (sprite[i].getScale().x * DEFAULT_FIELD_W + 5) * (i % AMOUNT_PER_SIDE),
+                    5 + (sprite[i].getScale().x * DEFAULT_FIELD_H + 5) * (i / AMOUNT_PER_SIDE));
+                id_display.setPosition(sprite[i].getPosition());
+                id_display.setString(to_string(view_id + i));
+                window.draw(sprite[i]);
+                if (show_id)
+                    window.draw(id_display);
+            }
         }
 		window.display();
 	}
