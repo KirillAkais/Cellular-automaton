@@ -9,7 +9,8 @@
 #define DEFAULT_FIELD_W 64
 #define DEFAULT_FIELD_H 64
 #define DEFAULT_FIELD_SIZE 4096 //FIELD_W * FIELD_H
-#define RULE_SIZE 512
+#define RULE_SIZE 1024
+#define CONWAY_SIZE 20
 #define POPULATION_SIZE 128
 
 #define EVOLUTE_DYNAMIC 0
@@ -27,16 +28,20 @@ class Automaton
 	Clock delay;
 
 public:
+	bool* conway;
+	bool* second_order;
+	bool* rule_conway;
 	bool* rule;
 	bool** state;
 	bool** prev_state;
 	int FIELD_W;
 	int FIELD_H;
 
-	Automaton();
-	Automaton(int field_w, int field_h);
+	Automaton(bool* conway, bool* second_order);
+	Automaton(bool* conway, bool* second_order, int field_w, int field_h);
 	void set_gene_ratio(int ratio);
-	void set_conway();
+	void set_conway_life();
+	void convert_from_conway();
 	void fill_random();
 	void fill_ratio(int ratio);
 	void fill_one();
@@ -53,11 +58,14 @@ class Population
 	Clock delay;
 public:
 	int* fitness;
+	bool* conway;
+	bool* second_order;
 	Automaton** automata;
 
 	Population();
 	void set_gene_ratio(int ratio);
-	void set_conway();
+	void set_conway_life();
+	void convert_from_conway();
 	void fill_random();
 	void fill_ratio(int ratio);
 	void fill_one();

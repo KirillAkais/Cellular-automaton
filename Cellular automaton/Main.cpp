@@ -12,17 +12,17 @@
 using namespace std;
 
 //Automata window size
-#define WINDOW_W 800
-#define WINDOW_H 800
+#define WINDOW_W 800.
+#define WINDOW_H 800.
 
-#define BIG_AUTOMATON_W 256.
-#define BIG_AUTOMATON_H 256.
+#define BIG_AUTOMATON_W 200
+#define BIG_AUTOMATON_H 200
 
 #define AMOUNT_PER_SIDE 4
 #define AMOUNT AMOUNT_PER_SIDE*AMOUNT_PER_SIDE
 //Control panel size
 #define CONTROL_W 800
-#define CONTROL_H 800
+#define CONTROL_H 900
 
 // Data
 static LPDIRECT3D9              g_pD3D = nullptr;
@@ -41,7 +41,7 @@ using namespace sf;
 int main()
 {
 	srand(time(0));
-
+    Clock delay;
     string name = "unnamed";
     bool overwrite = false;
     int view_id = 0;
@@ -57,7 +57,11 @@ int main()
 
 	//Automaton declaration and creation of sprite for drawing it
     Population p;
-    Automaton big(BIG_AUTOMATON_W, BIG_AUTOMATON_H);
+    bool* big_conway = new bool;
+    *big_conway = false;
+    bool* big_second_order = new bool;
+    *big_second_order = true;
+    Automaton big(big_conway, big_second_order, BIG_AUTOMATON_W, BIG_AUTOMATON_H);
 
 	Image **image = new Image*[AMOUNT + 1];
 	Texture **texture = new Texture*[AMOUNT + 1];
@@ -74,7 +78,7 @@ int main()
         texture[i]->loadFromImage(*image[i]);
         sprite[i].setTexture(*texture[i]);
         if (i != AMOUNT)
-            sprite[i].setScale(WINDOW_W / DEFAULT_FIELD_W / AMOUNT_PER_SIDE, WINDOW_H / DEFAULT_FIELD_H / AMOUNT_PER_SIDE);
+            sprite[i].setScale(WINDOW_W / (DEFAULT_FIELD_W + 2) / AMOUNT_PER_SIDE, WINDOW_H / (DEFAULT_FIELD_H + 2) / AMOUNT_PER_SIDE);
         else
             sprite[i].setScale(WINDOW_W / BIG_AUTOMATON_W, WINDOW_H / BIG_AUTOMATON_H);
     }
@@ -200,8 +204,17 @@ int main()
 
 
             ImGui::SeparatorText("Rule settings");
+            ImGui::Checkbox("Second order automata", p.second_order);
+            ImGui::Checkbox("conway automata", p.conway);
             if (ImGui::Button("Set to Game of life"))
-                p.set_conway();
+            {
+                *p.conway = true;
+                *p.second_order = false;
+                p.set_conway_life();
+            }
+            if (ImGui::Button("Convert from conway"))
+                p.convert_from_conway();
+                
 
             ImGui::SliderInt("% of 1 in rule", &gene_ratio, 0, 100);
             ImGui::SameLine();
@@ -215,19 +228,17 @@ int main()
                 p.fill_ratio(50);
                 big.fill_ratio(50);
             }
-
+            if (ImGui::Button("Set 0ne"))
+            {
+                p.fill_one();
+                big.fill_one();
+            }
             ImGui::SliderInt("% of 1 on field", &field_ratio, 0, 100);
             ImGui::SameLine();
             if (ImGui::Button("Fill"))
             {
                 p.fill_ratio(field_ratio);
                 big.fill_ratio(field_ratio);
-            }
-
-            if (ImGui::Button("Set 0ne"))
-            {
-                p.fill_one();
-                big.fill_one();
             }
 
             ImGui::SeparatorText("Evolution settings");
@@ -333,7 +344,7 @@ int main()
             {
                 texture[i]->loadFromImage(*image[i]);
                 sprite[i].setTexture(*texture[i]);
-                sprite[i].setScale(WINDOW_W / DEFAULT_FIELD_W / AMOUNT_PER_SIDE, WINDOW_H / DEFAULT_FIELD_H / AMOUNT_PER_SIDE);
+                
             }
         }
 		window.clear();
@@ -353,6 +364,12 @@ int main()
             }
         }
 		window.display();
+        //if (Keyboard::isKeyPressed(Keyboard::R) && delay.getElapsedTime().asSeconds() > 0.3)
+        {
+            //int id, n;
+            //cin >> id >> n;
+            //cout << p.automata[id]->rule[n] << endl;
+        }
 	}
 
     // Close gui window

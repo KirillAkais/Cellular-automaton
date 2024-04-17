@@ -4,13 +4,18 @@
 
 //using namespace std;
 
-Automaton::Automaton()
+Automaton::Automaton(bool* conway, bool* second_order)
 {
 	this->FIELD_H = DEFAULT_FIELD_H;
 	this->FIELD_W =DEFAULT_FIELD_W;
+	this->conway = conway;
+	this->second_order = second_order;
 	this->rule = new bool[RULE_SIZE];
+	this->rule_conway = new bool[CONWAY_SIZE];
 	for (int i = 0; i < RULE_SIZE; i++)
 		rule[i] = rand() % 2;
+	for (int i = 0; i < CONWAY_SIZE; i++)
+		rule_conway[i] = rand() % 2;
 
 	this->state = new bool*[FIELD_W];
 	this->prev_state = new bool*[FIELD_W];
@@ -22,17 +27,25 @@ Automaton::Automaton()
 		this->next_state[i] = new bool[FIELD_H];
 
 		for (int j = 0; j < FIELD_H; j++)
+		{
 			this->state[i][j] = rand() % 2;
+			this->prev_state[i][j] = rand() % 2;
+		}
 	}
 }
 
-Automaton::Automaton(int field_w, int field_h)
+Automaton::Automaton(bool* conway, bool* second_order, int field_w, int field_h)
 {
 	this->FIELD_H = field_h;
 	this->FIELD_W = field_w;
+	this->conway = conway;
+	this->second_order = second_order;
 	this->rule = new bool[RULE_SIZE];
+	this->rule_conway = new bool[CONWAY_SIZE];
 	for (int i = 0; i < RULE_SIZE; i++)
 		rule[i] = rand() % 2;
+	for (int i = 0; i < CONWAY_SIZE; i++)
+		rule_conway[i] = rand() % 2;
 
 	this->state = new bool* [FIELD_W];
 	this->prev_state = new bool* [FIELD_W];
@@ -44,32 +57,49 @@ Automaton::Automaton(int field_w, int field_h)
 		this->next_state[i] = new bool[FIELD_H];
 
 		for (int j = 0; j < FIELD_H; j++)
+		{
 			this->state[i][j] = rand() % 2;
+			this->prev_state[i][j] = rand() % 2;
+		}
 	}
 }
 
 void Automaton::set_gene_ratio(int ratio)
 {
-	for (int i = 0; i < RULE_SIZE; i++)
-		rule[i] = (rand() % 100) < ratio;
+	if(*conway)
+	{
+		for (int i = 0; i < CONWAY_SIZE; i++)
+			rule_conway[i] = (rand() % 100) < ratio;
+	}
+	else
+	{
+		for (int i = 0; i < RULE_SIZE; i++)
+			rule[i] = (rand() % 100) < ratio;
+	}
 }
 
 // Sets rule to Conway's game of life
-void Automaton::set_conway()
+void Automaton::set_conway_life()
 {
-	int alive, alive_neigbors=0;
+	for (int i = 0; i < CONWAY_SIZE; i++)
+		rule_conway[i] = 0;
+	rule_conway[3] = 1;
+	rule_conway[12] = 1;
+	rule_conway[13] = 1;
+}
+
+void Automaton::convert_from_conway()
+{
+	int alive, alive_neigbors = 0;
 	Uint16 s;
 	for (int i = 0; i < RULE_SIZE; i++)
 	{
 		s = i;
 		alive = s & 16;
-		s &= 0x01EF;
+		alive >>= 4;
+		s &= 0x03EF;
 		alive_neigbors = _Popcount(s);
-		if ((!alive && alive_neigbors == 3) ||
-			(alive && (alive_neigbors == 2 || alive_neigbors == 3)))
-			rule[i] = 1;
-		else
-			rule[i] = 0;
+		rule[i] = rule_conway[alive_neigbors + 10 * alive];
 	}
 }
 
@@ -78,7 +108,10 @@ void Automaton::fill_random()
 	for (int i = 0; i < FIELD_W; i++)
 	{
 		for (int j = 0; j < FIELD_H; j++)
+		{
 			this->state[i][j] = rand() % 2;
+			this->prev_state[i][j] = rand() % 2;
+		}
 	}
 }
 
@@ -87,7 +120,10 @@ void Automaton::fill_ratio(int ratio)
 	for (int i = 0; i < FIELD_W; i++)
 	{
 		for (int j = 0; j < FIELD_H; j++)
+		{
 			this->state[i][j] = (rand() % 100) < ratio;
+			this->prev_state[i][j] = (rand() % 100) < ratio;
+		}
 	}
 }
 
@@ -96,7 +132,10 @@ void Automaton::fill_one()
 	for (int i = 0; i < FIELD_W; i++)
 	{
 		for (int j = 0; j < FIELD_H; j++)
+		{
 			this->state[i][j] = 0;
+			this->prev_state[i][j] = 0;
+		}
 	}
 	state[FIELD_W / 2][FIELD_H / 2] = 1;
 }
@@ -104,7 +143,8 @@ void Automaton::fill_one()
 // Iterates the automaton
 void Automaton::step()
 {
-	int n, xm, xp, ym, yp, x, y;
+	int n, xm, xp, ym, yp, x, y, alive, alive_neigbors;
+	Uint16 s;
 	for (x = 0; x < FIELD_W; x++)
 	{
 		xm = !x ? FIELD_W - 1 : x - 1;
@@ -123,9 +163,20 @@ void Automaton::step()
 				| (state[xm][yp] << 6)
 				| (state[x][yp] << 7)
 				| (state[xp][yp] << 8);
-				//| (prev_state[x][y] << 9);
+			if(*second_order)
+				n |= (prev_state[x][y] << 9);
 			
-			next_state[x][y] = rule[n];
+			if(*conway)
+			{
+				s = n;
+				alive = s & 16;
+				alive >>= 4;
+				s &= 0x03EF;
+				alive_neigbors = _Popcount(s);
+				next_state[x][y] = rule_conway[alive_neigbors + 10 * alive];
+			}
+			else
+				next_state[x][y] = rule[n];
 		}
 	}
 	swap(prev_state, state);
@@ -144,8 +195,16 @@ void Automaton::write(string name, bool overwrite)
 	}
 	test.close();
 	file.open(name + ".txt");
-	for (int i = 0; i < RULE_SIZE; i++)
-		file << rule[i] << " ";
+	if (*conway)
+	{
+		for (int i = 0; i < CONWAY_SIZE; i++)
+			file << rule_conway[i] << " ";
+	}
+	else
+	{
+		for (int i = 0; i < RULE_SIZE; i++)
+			file << rule[i] << " ";
+	}
 	file.close();
 }
 
@@ -153,8 +212,22 @@ void Automaton::read(string name)
 {
 	ifstream file;
 	file.open(name + ".txt");
-	for (int i = 0; i < RULE_SIZE && !file.eof(); i++)
-		file >> rule[i];
+	if (!file.good())
+	{
+		cout << "Error: unable to open file" << endl;
+		file.close();
+		return;
+	}
+	if (*conway)
+	{
+		for (int i = 0; i < CONWAY_SIZE && !file.eof(); i++)
+			file >> rule_conway[i];
+	}
+	else
+	{
+		for (int i = 0; i < RULE_SIZE && !file.eof(); i++)
+			file >> rule[i];
+	}
 	file.close();
 }
 
@@ -162,6 +235,10 @@ void Automaton::clone(Automaton* a)
 {
 	for (int i = 0; i < RULE_SIZE; i++)
 		rule[i] = a->rule[i];
+	for (int i = 0; i < CONWAY_SIZE; i++)
+		rule_conway[i] = a->rule_conway[i];
+	*conway = *a->conway;
+	*second_order = *a->second_order;
 }
 
 // Continuously iterates and draws the automaton
@@ -203,9 +280,15 @@ Population::Population()
 {
 	this->automata = new Automaton*[POPULATION_SIZE];
 	this->fitness = new int[POPULATION_SIZE];
+	this->conway = new bool;
+	*this->conway = false;
+	this->second_order = new bool;
+	*this->second_order = true;
 	for (int i = 0; i < POPULATION_SIZE; i++)
 	{
-		automata[i] = new Automaton;
+		automata[i] = new Automaton(conway, second_order);
+		automata[i]->fill_ratio(50);
+		//automata[i]->set_gene_ratio(50);
 		this->fitness[i] = 0;
 	}
 }
@@ -216,10 +299,16 @@ void Population::set_gene_ratio(int ratio)
 		automata[i]->set_gene_ratio(ratio);
 }
 
-void Population::set_conway()
+void Population::set_conway_life()
 {
 	for (int i = 0; i < POPULATION_SIZE; i++)
-		automata[i]->set_conway();
+		automata[i]->set_conway_life();
+}
+
+void Population::convert_from_conway()
+{
+	for (int i = 0; i < POPULATION_SIZE; i++)
+		automata[i]->convert_from_conway();
 }
 
 void Population::fill_random()
@@ -245,7 +334,7 @@ void Population::select_dynamic()
 	int fit, count1, count2;
 	fill_random();
 	//cout << "1.1" << endl;
-	step(100);
+	step(50);
 	//cout << "1.2" << endl;
 	for (int i = 0; i < POPULATION_SIZE; i++)
 	{
